@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}亚马逊报表自动化{% endblock %}</title>
+  <style>
+    :root {
+      --bg: #f4f1ea;
+      --card: #ffffff;
+      --ink: #1c1917;
+      --muted: #57534e;
+      --line: #e7e5e4;
+      --accent: #c2410c;
+      --accent-dark: #9a3412;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif;
+      background:
+        radial-gradient(circle at top right, rgba(194, 65, 12, 0.08), transparent 28%),
+        var(--bg);
+      color: var(--ink);
+    }
+    .wrap {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 36px 20px 80px;
+    }
+    nav {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 28px;
+      font-size: 14px;
+    }
+    nav a {
+      color: var(--muted);
+      text-decoration: none;
+    }
+    nav a.active, nav a:hover { color: var(--accent); }
+    h1 {
+      font-size: 28px;
+      margin: 0 0 8px;
+      letter-spacing: 0.02em;
+    }
+    .lead {
+      margin: 0 0 28px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    form, .card, .result {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 16px 40px rgba(28, 25, 23, 0.06);
+    }
+    .field { margin-bottom: 18px; }
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .hint {
+      font-weight: 400;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    input[type="file"] {
+      width: 100%;
+      padding: 12px;
+      border: 1px dashed #d6d3d1;
+      border-radius: 10px;
+      background: #fafaf9;
+    }
+    button, .tool-link {
+      display: block;
+      width: 100%;
+      margin-top: 8px;
+      border: 0;
+      border-radius: 10px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 16px;
+      font-weight: 600;
+      padding: 12px 16px;
+      cursor: pointer;
+      text-align: center;
+      text-decoration: none;
+    }
+    button:hover, .tool-link:hover { background: var(--accent-dark); }
+    button[disabled] {
+      opacity: 0.65;
+      cursor: wait;
+    }
+    .error {
+      margin-bottom: 16px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: #fff1f2;
+      color: #9f1239;
+      border: 1px solid #fecdd3;
+    }
+    .steps {
+      margin-top: 24px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.7;
+    }
+    .tool-grid {
+      display: grid;
+      gap: 16px;
+    }
+    .tool-grid h2 {
+      margin: 0 0 8px;
+      font-size: 20px;
+    }
+    .result-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--line);
+      font-size: 16px;
+    }
+    .result-row:last-child {
+      border-bottom: 0;
+      font-weight: 700;
+      font-size: 18px;
+    }
+    .amount { font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav>
+      <a href="/" class="{% if nav == 'home' %}active{% endif %}">工具首页</a>
+      <a href="/weekly" class="{% if nav == 'weekly' %}active{% endif %}">周报处理</a>
+      <a href="/settlement" class="{% if nav == 'settlement' %}active{% endif %}">交易对账</a>
+    </nav>
+    {% block content %}{% endblock %}
+  </div>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

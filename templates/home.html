@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}亚马逊报表自动化{% endblock %}
+{% block content %}
+<h1>亚马逊报表自动化</h1>
+<p class="lead">同一个网页里有两个工具，按需要进入即可。周报处理仍会导出 Excel，交易对账只计算并展示金额。</p>
+<div class="tool-grid">
+  <div class="card">
+    <h2>周报处理</h2>
+    <p class="lead" style="margin-bottom: 12px;">上传业务报表、广告报表和模板表，清洗 ASIN 后写入模板 US 表。</p>
+    <a class="tool-link" href="/weekly">进入周报处理</a>
+  </div>
+  <div class="card">
+    <h2>交易对账</h2>
+    <p class="lead" style="margin-bottom: 12px;">上传客户交易表和广告报表，分别汇总后展示交易总和、广告总和，以及两者差额。</p>
+    <a class="tool-link" href="/settlement">进入交易对账</a>
+  </div>
+</div>
+{% endblock %}

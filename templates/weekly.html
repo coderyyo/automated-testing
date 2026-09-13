@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}周报处理{% endblock %}
+{% block content %}
+<h1>周报处理</h1>
+<p class="lead">上传业务报表、广告报表和模板表，系统会清洗 ASIN、汇总数据，并导出填好的 Excel。与模板 B 列不一致的 ASIN 会黄色高亮。</p>
+{% if error %}
+<div class="error">{{ error }}</div>
+{% endif %}
+<form method="post" enctype="multipart/form-data" id="report-form">
+  <div class="field">
+    <label>1. 业务报表 CSV <span class="hint">保留 ASIN、会话数、订购数量、商品会话百分比、销售额；订购数量为 0 的行会去掉，相同 ASIN 会合并加总</span></label>
+    <input type="file" name="business" accept=".csv,.xlsx,.xls" required>
+  </div>
+  <div class="field">
+    <label>2. 广告报表 CSV <span class="hint">只保留广告组合里的 10 位 ASIN 和支出；抽不到 ASIN 或支出为 0 的行会去掉，相同 ASIN 支出会合并</span></label>
+    <input type="file" name="ads" accept=".csv,.xlsx,.xls" required>
+  </div>
+  <div class="field">
+    <label>3. 模板 Excel <span class="hint">只处理名为 US 的工作表；业务结果从 J2 写入，广告结果从 O2 写入，不带表头。回款 / UK / DE 等其他表保持原样</span></label>
+    <input type="file" name="template" accept=".xlsx,.xlsm" required>
+  </div>
+  <button type="submit" id="submit-btn">处理并下载 Excel</button>
+</form>
+<div class="steps">
+  处理规则：只写入模板里的 US 工作表。广告组合例如「B0F5WJBX67 7件套」只会留下 B0F5WJBX67。US 表 B 列从 B3 起作为对照 ASIN，J 列或 O 列里多出来的 ASIN 会黄底标记。
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  const form = document.getElementById('report-form');
+  const button = document.getElementById('submit-btn');
+  form.addEventListener('submit', function () {
+    button.disabled = true;
+    button.textContent = '正在处理…';
+    setTimeout(function () {
+      button.disabled = false;
+      button.textContent = '处理并下载 Excel';
+    }, 5000);
+  });
+</script>
+{% endblock %}

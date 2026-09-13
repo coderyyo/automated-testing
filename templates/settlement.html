@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}交易对账{% endblock %}
+{% block content %}
+<h1>交易对账</h1>
+<p class="lead">上传美国 / 英国 / 德国的客户交易表和广告报表，页面会分别算出交易总和、广告总和，以及交易总和减广告总和。</p>
+{% if error %}
+<div class="error">{{ error }}</div>
+{% endif %}
+{% if result %}
+<div class="result" style="margin-bottom: 20px;">
+  <div class="result-row">
+    <span>交易总和</span>
+    <span class="amount">{{ result.transaction_total }}</span>
+  </div>
+  <div class="result-row">
+    <span>广告总和（{{ result.ads_currency }}）</span>
+    <span class="amount">{{ result.ads_total }}</span>
+  </div>
+  <div class="result-row">
+    <span>交易总和 − 广告总和</span>
+    <span class="amount">{{ result.net }}</span>
+  </div>
+</div>
+{% endif %}
+<form method="post" enctype="multipart/form-data" id="settlement-form">
+  <div class="field">
+    <label>1. 客户交易 CSV <span class="hint">第 10 行作为表头；只保留 type/Typ 和 total/Gesamt。type 含 Transfer、Typ 含 Übertrag 的行会去掉，再对金额求和</span></label>
+    <input type="file" name="transaction" accept=".csv,.xlsx,.xls" required>
+  </div>
+  <div class="field">
+    <label>2. 广告报表 CSV <span class="hint">只保留广告组合里的 10 位 ASIN 和支出(USD/GBP/EUR)；抽不到 ASIN 或支出为 0 的行会去掉，相同 ASIN 支出合并后再求和</span></label>
+    <input type="file" name="ads" accept=".csv,.xlsx,.xls" required>
+  </div>
+  <button type="submit" id="submit-btn">计算总和</button>
+</form>
+<div class="steps">
+  广告组合例如「B0F5WJBX67 7件套」只会留下 B0F5WJBX67。请上传同一站点的两份表，避免美元、英镑、欧元混算。
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  const form = document.getElementById('settlement-form');
+  const button = document.getElementById('submit-btn');
+  form.addEventListener('submit', function () {
+    button.disabled = true;
+    button.textContent = '正在计算…';
+  });
+</script>
+{% endblock %}
