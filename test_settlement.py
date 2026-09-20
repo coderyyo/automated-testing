@@ -23,8 +23,13 @@ class TransferFilterTests(unittest.TestCase):
         self.assertTrue(is_transfer_type('Transfer'))
         self.assertTrue(is_transfer_type('Fund Transfer'))
         self.assertTrue(is_transfer_type('Übertrag'))
+        self.assertTrue(is_transfer_type('Transferir'))
+        self.assertTrue(is_transfer_type('Trasferimento'))
+        self.assertTrue(is_transfer_type('Transfert'))
         self.assertFalse(is_transfer_type('Order'))
         self.assertFalse(is_transfer_type('Bestellung'))
+        self.assertFalse(is_transfer_type('Pedido'))
+        self.assertFalse(is_transfer_type('Ordine'))
 
 
 class ParseNumberLocaleTests(unittest.TestCase):
@@ -61,6 +66,58 @@ class TransactionReportTests(unittest.TestCase):
         self.assertEqual(result['rows'], 2)
         self.assertEqual(result['total'], 1224.56)
 
+    def test_spain_tipo_total_drops_transferir(self):
+        raw = _transaction_csv(
+            'fecha,tipo,pedido,total',
+            [
+                'd,Pedido,A,10.00',
+                'd,Transferir,B,99.00',
+                'd,Reembolso,C,-1.50',
+            ],
+        )
+        result = process_transaction_report(raw, 'es.csv')
+        self.assertEqual(result['rows'], 2)
+        self.assertEqual(result['total'], 8.5)
+
+    def test_italy_tipo_totale_drops_trasferimento(self):
+        raw = _transaction_csv(
+            'data,Tipo,ordine,totale',
+            [
+                'd,Ordine,A,10.00',
+                'd,Trasferimento,B,99.00',
+                'd,Rimborso,C,-1.50',
+            ],
+        )
+        result = process_transaction_report(raw, 'it.csv')
+        self.assertEqual(result['rows'], 2)
+        self.assertEqual(result['total'], 8.5)
+
+    def test_france_type_total_drops_transfert(self):
+        raw = _transaction_csv(
+            'date,type,commande,total',
+            [
+                'd,Commande,A,10.00',
+                'd,Transfert,B,99.00',
+                'd,Remboursement,C,-1.50',
+            ],
+        )
+        result = process_transaction_report(raw, 'fr.csv')
+        self.assertEqual(result['rows'], 2)
+        self.assertEqual(result['total'], 8.5)
+
+    def test_canada_type_total_drops_transfer(self):
+        raw = _transaction_csv(
+            'date/time,type,order id,total',
+            [
+                'd,Order,A,10.00',
+                'd,Transfer,B,99.00',
+                'd,Refund,C,-1.50',
+            ],
+        )
+        result = process_transaction_report(raw, 'ca.csv')
+        self.assertEqual(result['rows'], 2)
+        self.assertEqual(result['total'], 8.5)
+
 
 class AdsSpendReportTests(unittest.TestCase):
     def test_gbp_extract_filter_merge_and_sum(self):
@@ -90,6 +147,28 @@ class SettlementSummaryTests(unittest.TestCase):
         self.assertEqual(result['ads_total'], 5.0)
         self.assertEqual(result['net'], 15.0)
         self.assertEqual(result['ads_currency'], 'USD')
+
+    def test_transaction_only(self):
+        transaction = _transaction_csv('type,total', ['Order,20', 'Transfer,8'])
+        result = summarize_settlement(transaction, 'tx.csv', None, '')
+        self.assertTrue(result['has_transaction'])
+        self.assertFalse(result['has_ads'])
+        self.assertEqual(result['transaction_total'], 20.0)
+        self.assertIsNone(result['ads_total'])
+        self.assertIsNone(result['net'])
+
+    def test_ads_only(self):
+        ads = '广告组合,支出(CAD)\nB0F5WJBX67 7件套,5\n'.encode('utf-8-sig')
+        result = summarize_settlement(None, '', ads, 'ads.csv')
+        self.assertFalse(result['has_transaction'])
+        self.assertTrue(result['has_ads'])
+        self.assertEqual(result['ads_total'], 5.0)
+        self.assertEqual(result['ads_currency'], 'CAD')
+        self.assertIsNone(result['net'])
+
+    def test_requires_at_least_one_file(self):
+        with self.assertRaisesRegex(ValueError, '至少'):
+            summarize_settlement(None, '', None, '')
 
 
 if __name__ == '__main__':

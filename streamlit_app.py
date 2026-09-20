@@ -59,29 +59,44 @@ def render_weekly() -> None:
 
 def render_settlement() -> None:
     st.subheader("交易对账")
-    st.write("上传同一站点的客户交易表和广告报表，展示交易总和、广告总和，以及两者差额。")
-    transaction = st.file_uploader("1. 客户交易 CSV", type=["csv", "xlsx", "xls"], key="settle_tx")
-    ads = st.file_uploader("2. 广告报表 CSV", type=["csv", "xlsx", "xls"], key="settle_ads")
+    st.write("客户交易表和广告报表可以只传一份，也可以两份一起传。只传一份就只算该份总和；两份都传再算出差额。")
+    transaction = st.file_uploader("1. 客户交易 CSV（可选）", type=["csv", "xlsx", "xls"], key="settle_tx")
+    ads = st.file_uploader("2. 广告报表 CSV（可选）", type=["csv", "xlsx", "xls"], key="settle_ads")
     if st.button("计算总和", type="primary", key="settle_run"):
-        if transaction is None or ads is None:
-            st.error("请上传客户交易表和广告报表")
+        if transaction is None and ads is None:
+            st.error("请至少上传一份客户交易表或广告报表")
             return
         try:
-            summary = summarize_settlement(
-                *read_upload(transaction),
-                *read_upload(ads),
-            )
+            tx_raw, tx_name = (b'', '') if transaction is None else read_upload(transaction)
+            ads_raw, ads_name = (b'', '') if ads is None else read_upload(ads)
+            summary = summarize_settlement(tx_raw, tx_name, ads_raw, ads_name)
         except Exception as exc:
             st.error(str(exc))
             return
         st.session_state['settle_result'] = summary
     result = st.session_state.get('settle_result')
     if result is not None:
-        col1, col2, col3 = st.columns(3)
-        col1.metric("交易总和", format_amount(result['transaction_total']))
-        col2.metric("广告总和（{0}）".format(result['ads_currency']), format_amount(result['ads_total']))
-        col3.metric("交易 − 广告", format_amount(result['net']))
-    st.caption("交易表第 10 行作为表头，只保留 type/Typ 和 total/Gesamt；含 Transfer 或 Übertrag 的行会去掉。请不要把美元、英镑、欧元混在一次计算里。")
+        cols = st.columns(3)
+        if result.get('has_transaction'):
+            cols[0].metric("交易总和", format_amount(result['transaction_total']))
+        else:
+            cols[0].metric("交易总和", "—")
+        if result.get('has_ads'):
+            cols[1].metric(
+                "广告总和（{0}）".format(result['ads_currency']),
+                format_amount(result['ads_total']),
+            )
+        else:
+            cols[1].metric("广告总和", "—")
+        if result.get('net') is not None:
+            cols[2].metric("交易 − 广告", format_amount(result['net']))
+        else:
+            cols[2].metric("交易 − 广告", "—")
+    st.caption(
+        "交易表默认第 10 行作表头。美/加/法：type + total（Transfer / Transfert）；"
+        "德：Typ + Gesamt（Übertrag）；西：tipo + total（Transferir）；"
+        "意：Tipo + totale（Trasferimento）。广告支出支持 USD/CAD/GBP/EUR。"
+    )
 
 
 st.title("亚马逊报表自动化")

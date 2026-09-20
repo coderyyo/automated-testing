@@ -73,22 +73,21 @@ def settlement():
     if request.method == 'POST':
         transaction = request.files.get('transaction')
         ads = request.files.get('ads')
-        if transaction is None or transaction.filename in (None, ''):
-            error = '请上传第一份客户交易 CSV'
-        elif ads is None or ads.filename in (None, ''):
-            error = '请上传第二份广告报表 CSV'
+        tx_name = '' if transaction is None else (transaction.filename or '')
+        ads_name = '' if ads is None else (ads.filename or '')
+        tx_raw = b'' if transaction is None or tx_name == '' else transaction.read()
+        ads_raw = b'' if ads is None or ads_name == '' else ads.read()
+        if tx_name == '' and ads_name == '':
+            error = '请至少上传一份客户交易表或广告报表'
         else:
             try:
-                summary = summarize_settlement(
-                    transaction.read(),
-                    transaction.filename or 'transaction.csv',
-                    ads.read(),
-                    ads.filename or 'ads.csv',
-                )
+                summary = summarize_settlement(tx_raw, tx_name, ads_raw, ads_name)
                 result = {
-                    'transaction_total': format_amount(summary['transaction_total']),
-                    'ads_total': format_amount(summary['ads_total']),
-                    'net': format_amount(summary['net']),
+                    'has_transaction': summary['has_transaction'],
+                    'has_ads': summary['has_ads'],
+                    'transaction_total': None if summary['transaction_total'] is None else format_amount(summary['transaction_total']),
+                    'ads_total': None if summary['ads_total'] is None else format_amount(summary['ads_total']),
+                    'net': None if summary['net'] is None else format_amount(summary['net']),
                     'ads_currency': summary['ads_currency'],
                 }
             except Exception as exc:

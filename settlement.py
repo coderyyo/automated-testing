@@ -17,12 +17,20 @@ from processor import (
     parse_number,
 )
 
-TRANSACTION_TYPE_ALIASES = ['type', 'typ']
-TRANSACTION_TOTAL_ALIASES = ['total', 'gesamt']
-TRANSFER_MARKERS = ('transfer', 'übertrag', 'uebertrag')
+TRANSACTION_TYPE_ALIASES = ['type', 'typ', 'tipo']
+TRANSACTION_TOTAL_ALIASES = ['total', 'gesamt', 'totale']
+TRANSFER_MARKERS = (
+    'trasferimento',
+    'transferir',
+    'transfert',
+    'transfer',
+    'übertrag',
+    'uebertrag',
+)
 ADS_PORTFOLIO_ALIASES = ['广告组合', 'portfolio', 'portfolioname']
 ADS_SPEND_BY_CURRENCY = (
     ('USD', ['支出(usd)', '花费(usd)', 'spend(usd)']),
+    ('CAD', ['支出(cad)', '花费(cad)', 'spend(cad)']),
     ('GBP', ['支出(gbp)', '花费(gbp)', 'spend(gbp)']),
     ('EUR', ['支出(eur)', '花费(eur)', 'spend(eur)']),
 )
@@ -95,9 +103,9 @@ def process_transaction_report(raw: bytes, filename: str) -> Dict[str, Any]:
     total_col = find_column(frame.columns, TRANSACTION_TOTAL_ALIASES)
     missing = []
     if type_col is None:
-        missing.append('type/Typ')
+        missing.append('type/Typ/tipo/Tipo')
     if total_col is None:
-        missing.append('total/Gesamt')
+        missing.append('total/Gesamt/totale')
     if missing:
         available = [str(col) for col in frame.columns if str(col).strip() and not str(col).lower().startswith('unnamed')]
         raise ValueError(
@@ -138,7 +146,7 @@ def process_ads_spend_report(raw: bytes, filename: str) -> Dict[str, Any]:
     if portfolio_col is None:
         missing.append('广告组合')
     if spend_found is None:
-        missing.append('支出(USD)/支出(GBP)/支出(EUR)')
+        missing.append('支出(USD)/支出(CAD)/支出(GBP)/支出(EUR)')
     if missing:
         available = [str(col) for col in frame.columns if str(col).strip() and not str(col).lower().startswith('unnamed')]
         raise ValueError(
@@ -174,23 +182,36 @@ def process_ads_spend_report(raw: bytes, filename: str) -> Dict[str, Any]:
     }
 
 
+def _has_upload(raw: Optional[bytes], filename: Optional[str] = None) -> bool:
+    return raw is not None and raw != b''
+
+
 def summarize_settlement(
-    transaction_raw: bytes,
-    transaction_name: str,
-    ads_raw: bytes,
-    ads_name: str,
+    transaction_raw: Optional[bytes] = None,
+    transaction_name: str = '',
+    ads_raw: Optional[bytes] = None,
+    ads_name: str = '',
 ) -> Dict[str, Any]:
-    transaction = process_transaction_report(transaction_raw, transaction_name)
-    ads = process_ads_spend_report(ads_raw, ads_name)
-    net = round(transaction['total'] - ads['total'], 2)
+    has_transaction = _has_upload(transaction_raw, transaction_name)
+    has_ads = _has_upload(ads_raw, ads_name)
+    if not has_transaction and not has_ads:
+        raise ValueError('请至少上传一份客户交易表或广告报表')
+
+    transaction = process_transaction_report(transaction_raw, transaction_name) if has_transaction else None
+    ads = process_ads_spend_report(ads_raw, ads_name) if has_ads else None
+    net = None
+    if transaction is not None and ads is not None:
+        net = round(transaction['total'] - ads['total'], 2)
     return {
-        'transaction_total': transaction['total'],
-        'transaction_rows': transaction['rows'],
-        'transaction_type_column': transaction['type_column'],
-        'transaction_total_column': transaction['total_column'],
-        'ads_total': ads['total'],
-        'ads_rows': ads['rows'],
-        'ads_currency': ads['currency'],
-        'ads_spend_column': ads['spend_column'],
+        'has_transaction': has_transaction,
+        'has_ads': has_ads,
+        'transaction_total': None if transaction is None else transaction['total'],
+        'transaction_rows': None if transaction is None else transaction['rows'],
+        'transaction_type_column': None if transaction is None else transaction['type_column'],
+        'transaction_total_column': None if transaction is None else transaction['total_column'],
+        'ads_total': None if ads is None else ads['total'],
+        'ads_rows': None if ads is None else ads['rows'],
+        'ads_currency': None if ads is None else ads['currency'],
+        'ads_spend_column': None if ads is None else ads['spend_column'],
         'net': net,
     }
