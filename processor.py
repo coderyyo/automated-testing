@@ -29,6 +29,21 @@ ADS_COLUMNS = [
     '广告组合',
     '支出(USD)',
 ]
+WEEKLY_SPEND_BY_CURRENCY = (
+    ('USD', ['支出(usd)', '花费(usd)', 'spend(usd)']),
+    ('GBP', ['支出(gbp)', '花费(gbp)', 'spend(gbp)']),
+    ('EUR', ['支出(eur)', '花费(eur)', 'spend(eur)']),
+)
+MARKET_BY_CURRENCY = {
+    'USD': 'US',
+    'GBP': 'UK',
+    'EUR': 'DE',
+}
+SHEET_LAYOUT = {
+    'US': {'business_data_row': 2, 'ads_data_row': 2},
+    'UK': {'business_data_row': 3, 'ads_data_row': 3},
+    'DE': {'business_data_row': 2, 'ads_data_row': 3},
+}
 
 BUSINESS_ALIASES = {
     '(子)ASIN': ['(子)asin', '子asin', 'asin', 'childasin', '子asin(子)'],
@@ -36,10 +51,6 @@ BUSINESS_ALIASES = {
     '已订购商品数量': ['已订购商品数量', 'unitsordered', '已订购商品数'],
     '商品会话百分比': ['商品会话百分比', 'unitsessionpercentage', 'unit会话百分比'],
     '已订购商品销售额': ['已订购商品销售额', 'orderedproductsales', '已订购商品销售'],
-}
-ADS_ALIASES = {
-    '广告组合': ['广告组合', 'portfolio', 'portfolioname'],
-    '支出(USD)': ['支出(usd)', 'spend(usd)', '支出usd', 'spend'],
 }
 
 
@@ -103,7 +114,7 @@ def parse_number(value: Any) -> float:
     if negative:
         text = text[1:-1]
 
-    text = re.sub(r'(?i)usd|gbp|eur|us\$|\$|￥|¥|€|£', '', text)
+    text = re.sub(r'(?i)usd|cad|gbp|eur|英镑|us\$|\$|￥|¥|€|£|￡', '', text)
     text = text.replace('%', '')
     text = text.strip()
     text = re.sub(r'[^\d.,\-]', '', text)
@@ -272,19 +283,44 @@ def process_business_report(raw: bytes, filename: str) -> pd.DataFrame:
     return result.reset_index(drop=True)
 
 
-def process_ads_report(raw: bytes, filename: str) -> pd.DataFrame:
-    frame = load_table(raw, filename, ADS_COLUMNS)
-    columns = _require_columns(frame, ADS_ALIASES, '广告报表')
+def _find_weekly_spend_column(columns: Sequence[Any]) -> Optional[tuple]:
+    for currency, aliases in WEEKLY_SPEND_BY_CURRENCY:
+        column = find_column(columns, aliases)
+        if column is not None:
+            return currency, column
+    return None
+
+
+def process_ads_report(raw: bytes, filename: str) -> Tuple[pd.DataFrame, str]:
+    hints = ['广告组合', '支出(USD)', '支出(GBP)', '支出(EUR)']
+    frame = load_table(raw, filename, hints)
+    portfolio_col = find_column(frame.columns, ['广告组合', 'portfolio', 'portfolioname'])
+    spend_found = _find_weekly_spend_column(frame.columns)
+    missing = []
+    if portfolio_col is None:
+        missing.append('广告组合')
+    if spend_found is None:
+        missing.append('支出(USD)/支出(GBP)/支出(EUR)')
+    if missing:
+        available = [str(col) for col in frame.columns if str(col).strip() and not str(col).lower().startswith('unnamed')]
+        raise ValueError(
+            '广告报表缺少列：{0}。当前识别到的表头：{1}'.format(
+                '、'.join(missing),
+                '、'.join(available) if available else '无',
+            )
+        )
+    currency, spend_col = spend_found
+    spend_header = '支出({0})'.format(currency)
 
     work = pd.DataFrame({
-        'portfolio': frame[columns['广告组合']],
-        'spend': frame[columns['支出(USD)']].map(parse_number),
+        'portfolio': frame[portfolio_col],
+        'spend': frame[spend_col].map(parse_number),
     })
     work['asin'] = work['portfolio'].map(extract_asin)
     work = work[work['asin'].notna()].copy()
     work = work[~work['spend'].map(is_zero)].copy()
     if work.empty:
-        return pd.DataFrame(columns=ADS_COLUMNS)
+        return pd.DataFrame(columns=['广告组合', spend_header]), currency
 
     work['_order'] = range(len(work))
     grouped = work.groupby('asin', as_index=False).agg({
@@ -294,9 +330,9 @@ def process_ads_report(raw: bytes, filename: str) -> pd.DataFrame:
 
     result = pd.DataFrame({
         '广告组合': grouped['asin'],
-        '支出(USD)': grouped['spend'].map(lambda value: round(float(value), 2)),
+        spend_header: grouped['spend'].map(lambda value: round(float(value), 2)),
     })
-    return result.reset_index(drop=True)
+    return result.reset_index(drop=True), currency
 
 
 def _clean_number_for_excel(value: Any) -> Any:
@@ -307,13 +343,15 @@ def _clean_number_for_excel(value: Any) -> Any:
     return value
 
 
-def get_us_worksheet(workbook) -> Worksheet:
+def get_market_worksheet(workbook, market: str) -> Worksheet:
+    target = str(market).strip().upper()
     for name in workbook.sheetnames:
-        if str(name).strip().upper() == 'US':
+        if str(name).strip().upper() == target:
             return workbook[name]
     raise ValueError(
-        '模板中没有找到名为 US 的工作表，当前工作表：{0}'.format(
-            '、'.join(workbook.sheetnames) if workbook.sheetnames else '无'
+        '模板中没有找到名为 {0} 的工作表，当前工作表：{1}'.format(
+            target,
+            '、'.join(workbook.sheetnames) if workbook.sheetnames else '无',
         )
     )
 
@@ -368,21 +406,34 @@ def _write_frame(
     return highlighted
 
 
-def write_to_template(template_raw: bytes, business_df: pd.DataFrame, ads_df: pd.DataFrame) -> Tuple[bytes, Dict[str, Any]]:
+def write_to_template(
+    template_raw: bytes,
+    business_df: pd.DataFrame,
+    ads_df: pd.DataFrame,
+    currency: str,
+) -> Tuple[bytes, Dict[str, Any]]:
+    market = MARKET_BY_CURRENCY.get(currency)
+    if market is None:
+        raise ValueError('周报只支持 USD/GBP/EUR 广告支出，当前识别到：{0}'.format(currency))
+    layout = SHEET_LAYOUT[market]
     workbook = load_workbook(io.BytesIO(template_raw))
-    worksheet = get_us_worksheet(workbook)
+    worksheet = get_market_worksheet(workbook, market)
     template_asins = collect_template_asins(worksheet)
 
-    _clear_block(worksheet, 10, 14, 2)
-    _clear_block(worksheet, 15, 16, 2)
+    business_row = layout['business_data_row']
+    ads_row = layout['ads_data_row']
+    _clear_block(worksheet, 10, 14, business_row)
+    _clear_block(worksheet, 15, 16, ads_row)
 
-    highlighted_j = _write_frame(worksheet, business_df, 2, 10, template_asins, 0)
-    highlighted_o = _write_frame(worksheet, ads_df, 2, 15, template_asins, 0)
+    highlighted_j = _write_frame(worksheet, business_df, business_row, 10, template_asins, 0)
+    highlighted_o = _write_frame(worksheet, ads_df, ads_row, 15, template_asins, 0)
 
     output = io.BytesIO()
     workbook.save(output)
     output.seek(0)
     summary = {
+        'market': market,
+        'currency': currency,
         'business_rows': int(len(business_df)),
         'ads_rows': int(len(ads_df)),
         'template_asins': int(len(template_asins)),
@@ -403,5 +454,5 @@ def process_reports(
     if not template_name.lower().endswith(('.xlsx', '.xlsm')):
         raise ValueError('模板表请上传 .xlsx 或 .xlsm 文件')
     business_df = process_business_report(business_raw, business_name)
-    ads_df = process_ads_report(ads_raw, ads_name)
-    return write_to_template(template_raw, business_df, ads_df)
+    ads_df, currency = process_ads_report(ads_raw, ads_name)
+    return write_to_template(template_raw, business_df, ads_df, currency)

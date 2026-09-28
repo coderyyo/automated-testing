@@ -22,7 +22,7 @@ def read_upload(upload) -> tuple:
 
 def render_weekly() -> None:
     st.subheader("周报处理")
-    st.write("上传业务报表、广告报表和模板表，清洗 ASIN 后写入模板里的 US 工作表。")
+    st.write("上传业务报表、广告报表和模板表。系统按广告支出列自动写入 US（USD）、UK（GBP）或 DE（EUR）。")
     business = st.file_uploader("1. 业务报表 CSV", type=["csv", "xlsx", "xls"], key="weekly_business")
     ads = st.file_uploader("2. 广告报表 CSV", type=["csv", "xlsx", "xls"], key="weekly_ads")
     template = st.file_uploader("3. 模板 Excel", type=["xlsx", "xlsm"], key="weekly_template")
@@ -54,7 +54,7 @@ def render_weekly() -> None:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             key="weekly_download",
         )
-    st.caption("只写入 US 表。广告组合例如「B0F5WJBX67 7件套」只会留下 B0F5WJBX67。J 列或 O 列里多出来的 ASIN 会黄底标记。")
+    st.caption("USD→US（数据 J2/O2），GBP→UK（数据 J3/O3），EUR→DE（数据 J2/O3）。表头不覆盖。UK 销售额会去掉 £/GBP 等单位。B 列从 B3 对照，多出来的 ASIN 黄底标记。")
 
 
 def render_settlement() -> None:

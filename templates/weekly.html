@@ -12,17 +12,17 @@
     <input type="file" name="business" accept=".csv,.xlsx,.xls" required>
   </div>
   <div class="field">
-    <label>2. 广告报表 CSV <span class="hint">只保留广告组合里的 10 位 ASIN 和支出；抽不到 ASIN 或支出为 0 的行会去掉，相同 ASIN 支出会合并</span></label>
+    <label>2. 广告报表 CSV <span class="hint">US：支出(USD)；UK：支出(GBP)；DE：支出(EUR)。只留 ASIN 和支出，抽不到 ASIN 或支出为 0 的去掉，相同 ASIN 合并</span></label>
     <input type="file" name="ads" accept=".csv,.xlsx,.xls" required>
   </div>
   <div class="field">
-    <label>3. 模板 Excel <span class="hint">只处理名为 US 的工作表；业务结果从 J2 写入，广告结果从 O2 写入，不带表头。回款 / UK / DE 等其他表保持原样</span></label>
+    <label>3. 模板 Excel <span class="hint">按广告币种写入 US / UK / DE。US 数据 J2/O2，UK 数据 J3/O3，DE 数据 J2/O3，表头不覆盖。回款表不动</span></label>
     <input type="file" name="template" accept=".xlsx,.xlsm" required>
   </div>
   <button type="submit" id="submit-btn">处理并下载 Excel</button>
 </form>
 <div class="steps">
-  处理规则：只写入模板里的 US 工作表。广告组合例如「B0F5WJBX67 7件套」只会留下 B0F5WJBX67。US 表 B 列从 B3 起作为对照 ASIN，J 列或 O 列里多出来的 ASIN 会黄底标记。
+  处理规则：广告支出 USD→US、GBP→UK、EUR→DE。UK 的已订购商品销售额会去掉英镑单位。对照 ASIN 从对应表 B3 起，J/O 列多出来的 ASIN 黄底标记。
 </div>
 {% endblock %}
 {% block scripts %}

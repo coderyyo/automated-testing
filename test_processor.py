@@ -35,6 +35,9 @@ class ParseNumberTests(unittest.TestCase):
         self.assertEqual(parse_number('(2.00)'), -2.0)
         self.assertEqual(parse_number('—'), 0.0)
         self.assertEqual(parse_number('1.234,56'), 1234.56)
+        self.assertEqual(parse_number('£10.50'), 10.50)
+        self.assertEqual(parse_number('10.50 GBP'), 10.50)
+        self.assertEqual(parse_number('英镑12.00'), 12.0)
 
 
 class BusinessReportTests(unittest.TestCase):
@@ -72,7 +75,8 @@ class AdsReportTests(unittest.TestCase):
             ',B0CCC00003,enabled,x,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1\n'
             ',B0DDD00004 套装,enabled,x,1,1,1,1,1,1,1,4,1,1,1,1,1,1,1,1,1,1,1\n'
         )
-        frame = process_ads_report(csv_text.encode('utf-8-sig'), 'ads.csv')
+        frame, currency = process_ads_report(csv_text.encode('utf-8-sig'), 'ads.csv')
+        self.assertEqual(currency, 'USD')
         self.assertEqual(list(frame.columns), ['广告组合', '支出(USD)'])
         self.assertEqual(frame['广告组合'].tolist(), ['B0F5WJBX67', 'B0DDD00004'])
         self.assertEqual(frame.loc[0, '支出(USD)'], 4.0)
@@ -170,6 +174,83 @@ class TemplateWriteTests(unittest.TestCase):
                 ads_csv, 'ads.csv',
                 buffer.getvalue(), 'template.xlsx',
             )
+
+    def _uk_de_template(self):
+        workbook = Workbook()
+        refund = workbook.active
+        refund.title = '回款'
+        us = workbook.create_sheet('US')
+        us['J1'] = 'US-J-header'
+        us['O1'] = 'US-O-header'
+        us['B3'] = 'B0F5WJBX67'
+        uk = workbook.create_sheet('UK')
+        uk['J2'] = '（子）ASIN'
+        uk['O2'] = '广告组合'
+        uk['B2'] = 'ASIN'
+        uk['B3'] = 'B0F5WJBX67'
+        uk['J3'] = 'old-uk-j'
+        uk['O3'] = 'old-uk-o'
+        de = workbook.create_sheet('DE')
+        de['J1'] = '（子）ASIN'
+        de['O2'] = '广告组合'
+        de['B2'] = 'ASIN'
+        de['B3'] = 'B0F5WJBX67'
+        de['J2'] = 'old-de-j'
+        de['O3'] = 'old-de-o'
+        buffer = io.BytesIO()
+        workbook.save(buffer)
+        return buffer.getvalue()
+
+    def test_gbp_ads_write_uk_from_j3_o3(self):
+        ads_csv = (
+            '广告组合,支出(GBP)\n'
+            'B0F5WJBX67 7件套,2.2\n'
+        ).encode('utf-8-sig')
+        business_csv = (
+            '(子)ASIN,标题,会话数 - 总计,转化率 - 总计,页面浏览量 - 总计,'
+            '页面浏览量百分比 - 总计,推荐报价（推荐报价展示位）百分比,已订购商品数量,'
+            '商品会话百分比,已订购商品销售额,订单商品总数\n'
+            'B0F5WJBX67,A,10,1,1,1,1,2,20%,£10.50,1\n'
+        ).encode('utf-8-sig')
+        output, summary = process_reports(
+            business_csv, 'biz.csv',
+            ads_csv, 'ads.csv',
+            self._uk_de_template(), 'template.xlsx',
+        )
+        from openpyxl import load_workbook
+        result = load_workbook(io.BytesIO(output))
+        self.assertEqual(summary['market'], 'UK')
+        self.assertEqual(result['UK']['J2'].value, '（子）ASIN')
+        self.assertEqual(result['UK']['O2'].value, '广告组合')
+        self.assertEqual(result['UK']['J3'].value, 'B0F5WJBX67')
+        self.assertEqual(result['UK']['N3'].value, 10.5)
+        self.assertEqual(result['UK']['O3'].value, 'B0F5WJBX67')
+        self.assertEqual(result['UK']['P3'].value, 2.2)
+        self.assertEqual(result['US']['J1'].value, 'US-J-header')
+        self.assertEqual(result['DE']['J1'].value, '（子）ASIN')
+        self.assertEqual(result['DE']['O2'].value, '广告组合')
+
+    def test_eur_ads_write_de_j2_and_o3(self):
+        ads_csv = (
+            '广告组合,支出(EUR)\n'
+            'B0F5WJBX67 7件套,3.3\n'
+        ).encode('utf-8-sig')
+        business_csv, _usd_ads = self._sample_files()
+        output, summary = process_reports(
+            business_csv, 'biz.csv',
+            ads_csv, 'ads.csv',
+            self._uk_de_template(), 'template.xlsx',
+        )
+        from openpyxl import load_workbook
+        result = load_workbook(io.BytesIO(output))
+        self.assertEqual(summary['market'], 'DE')
+        self.assertEqual(result['DE']['J1'].value, '（子）ASIN')
+        self.assertEqual(result['DE']['J2'].value, 'B0F5WJBX67')
+        self.assertEqual(result['DE']['O2'].value, '广告组合')
+        self.assertEqual(result['DE']['O3'].value, 'B0F5WJBX67')
+        self.assertEqual(result['DE']['P3'].value, 3.3)
+        self.assertEqual(result['UK']['J2'].value, '（子）ASIN')
+        self.assertEqual(result['UK']['J3'].value, 'old-uk-j')
 
 
 if __name__ == '__main__':
